@@ -51,7 +51,7 @@ if ($null -eq $FilesToArchive -or $FilesToArchive.Count -eq 0) {
 }
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$ArchiveName = "backup_$Timestamp.zip"
+$ArchiveName = "backup_$Timestamp.tar.gz"
 $ArchivePath = Join-Path -Path $BackupDir -ChildPath $ArchiveName
 
 $TempDir = Join-Path -Path $env:TEMP -ChildPath "arch_temp_$Timestamp"
