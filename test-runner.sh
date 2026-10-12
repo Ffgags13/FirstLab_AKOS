@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Скрипт запускать через sudo!
+
 # Пути к скрипту и тестовой папке
 SETUP_SCRIPT="./lim-size-fold.sh"
 MAIN_SCRIPT="./script.sh"
@@ -21,9 +23,9 @@ reset_env() {
 echo "Запуск тест кейсов"
 
 
-# ТЕСТ 1: Проверка архивации при превышении порога
+# Тест 1: Проверка архивации при превышении порога
 
-echo -n "Тест 1: превышение порога (проверка архивации)..."
+echo -n "Тест 1: Превышение порога (проверка архивации)..."
 reset_env
 
 dd if=/dev/zero of="$TEST_DIR/file1.dat" bs=1M count=25 &>/dev/null
@@ -35,13 +37,13 @@ printf "50\n1\nn\n" | $MAIN_SCRIPT "$TEST_DIR" &>/dev/null
 if ls /backup_*.tar.gz &>/dev/null; then
 	echo " - PASSED"
 else
-	echo " - FAILED - архив не был создан."
+	echo " - FAILED"
 fi
 
 
-# ТЕСТ 2: Проверка, что архив не создается, если порог не превышен
+# Тест 2: Проверка что архив не создается, если порог не превышен
 
-echo -n "Тест 2: Порог НЕ превышен (архив создаваться не должен)... "
+echo -n "Тест 2: Порог не превышен (архив создаваться не должен)... "
 reset_env
 
 dd if=/dev/zero of="$TEST_DIR/small.dat" bs=1M count=5 &>/dev/null
@@ -51,11 +53,11 @@ printf "80\n1\nn\n" | $MAIN_SCRIPT "$TEST_DIR" &>/dev/null
 if ! ls /backup_*.tar.gz &>/dev/null; then
     echo " - PASSED"
 else
-    echo " - FAILED (Архив создался, хотя порог не был превышен)"
+    echo " - FAILED"
 fi
 
 
-# ТЕСТ 3: Проверка выбора самого старого файла и его удаления
+# Тест 3: Проверка выбора самого старого файла и его удаления
 
 echo -n "Тест 3: Сортировка по дате и удаление старого файла... "
 reset_env
@@ -70,5 +72,5 @@ printf "50\n1\ny\n" | $MAIN_SCRIPT "$TEST_DIR" &>/dev/null
 if [ ! -f "$TEST_DIR/very_old.dat" ] && [ -f "$TEST_DIR/fresh.dat" ]; then
     echo " - PASSED"
 else
-    echo " - FAILED (Старый файл не удалился или пострадал свежий)"
+    echo " - FAILED"
 fi
