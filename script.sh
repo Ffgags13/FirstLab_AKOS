@@ -80,6 +80,8 @@ printf '  - %s\n' "${FILES[@]}"
 #Создаём путь к папке для бэкапа 
 
 mkdir -p "$BACKUP_DIR"
+#получаем абсолютный путь для backup_dir
+BACKUP_DIR=$(cd "$BACKUP_DIR" && pwd)
 
 ARCHIVE_PATH="$BACKUP_DIR/$(basename "$TARGET_DIR").tar.gz"
 
