@@ -1,7 +1,5 @@
 #!/bin/bash
 
-bash ./run.sh &>/dev/null
-
 # Пути к скриптам и папкам
 SETUP_SCRIPT="./lim-size-fold.sh"
 MAIN_SCRIPT="./script.sh"
