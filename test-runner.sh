@@ -21,13 +21,13 @@ reset_env() {
 # Функция финальной очистки после всех тестов
 final_cleanup() {
 	if mountpoint -q "$TEST_DIR" 2>/dev/null; then
-		fusermount3 -u "&TEST_DIR" 2>/dev/null || fusermount -u "$TEST_DIR" 2>/dev/null
+		fusermount3 -u "$TEST_DIR" 2>/dev/null || fusermount -u "$TEST_DIR" 2>/dev/null
 		sleep 1
 	fi
 
 	IMG_NAME="$(basename "$TEST_DIR").img"
-	rm -f "IMG_NAME"
-	rm -rf "TEST_DIR" "BACKUP_DIR"
+	rm -f "$IMG_NAME"
+	rm -rf "$TEST_DIR" "$BACKUP_DIR"
 }
 
 chmod +x "$SETUP_SCRIPT" "$MAIN_SCRIPT"
@@ -42,7 +42,7 @@ final_cleanup 2>/dev/null
 bash "$SETUP_SCRIPT" -test "$TEST_DIR" "100M"
 
 if ! mountpoint -q "$TEST_DIR"; then
-	echo ""
+	echo "Диск не примонтирован."
 	exit
 fi
 
