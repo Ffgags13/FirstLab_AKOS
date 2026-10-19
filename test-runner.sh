@@ -1,76 +1,117 @@
 #!/bin/bash
 
-# Скрипт запускать через sudo!
+bash ./run.sh &>/dev/null
 
-# Пути к скрипту и тестовой папке
+# Пути к скриптам и папкам
 SETUP_SCRIPT="./lim-size-fold.sh"
 MAIN_SCRIPT="./script.sh"
-TEST_DIR="limited_folder"
-BACKUP_DIR="limited_folder/backups"
+TEST_DIR="./test_mount_dir"
+BACKUP_DIR="./test_backup_dir"
 
-# Функция очистки папки перед каждым тестом
+# Функция очистки виртуального диска между тестами
 reset_env() {
-	sudo umount -l "$TEST_DIR" &>/dev/null
-	rm -f "./fold_log.img"
-	rm -rf ${TEST_DIR:?}/*
-	sudo rm -f /backup_*.tar.gz
-
-	bash "$SETUP_SCRIPT" &>/dev/null
+	echo "- Очистка окружения -"
 	
+	if mountpoint -q "$TEST_DIR" 2>/dev/null; then
+		find "$TEST_DIR" -mindepth 1 -maxdepth 1 ! -name 'lost+found' -exec rm -rf -- {} + 2>/dev/null
+	fi
+
+	rm -rf "$BACKUP_DIR"
 	mkdir -p "$BACKUP_DIR"
 }
 
-echo "Запуск тест кейсов"
+# Функция финальной очистки после всех тестов
+final_cleanup() {
+	if mountpoint -q "$TEST_DIR" 2>/dev/null; then
+		fusermount3 -u "&TEST_DIR" 2>/dev/null || fusermount -u "$TEST_DIR" 2>/dev/null
+		sleep 1
+	fi
+
+	IMG_NAME="$(basename "$TEST_DIR").img"
+	rm -f "IMG_NAME"
+	rm -rf "TEST_DIR" "BACKUP_DIR"
+}
+
+chmod +x "$SETUP_SCRIPT" "$MAIN_SCRIPT"
 
 
-# Тест 1: Проверка архивации при превышении порога
+# ИНИЦИАЛИЗАЦИЯ
 
-echo -n "Тест 1: Превышение порога (проверка архивации)..."
-reset_env
 
-dd if=/dev/zero of="$TEST_DIR/file1.dat" bs=1M count=25 &>/dev/null
-dd if=/dev/zero of="$TEST_DIR/file2.dat" bs=1M count=25 &>/dev/null
-dd if=/dev/zero of="$TEST_DIR/file3.dat" bs=1M count=25 &>/dev/null
+echo "--- Начало тестирования ---"
 
-printf "50\n1\nn\n" | $MAIN_SCRIPT "$TEST_DIR" &>/dev/null
+final_cleanup 2>/dev/null
+bash "$SETUP_SCRIPT" -test "$TEST_DIR" "100M"
 
-if ls /backup_*.tar.gz &>/dev/null; then
-	echo " - PASSED"
-else
-	echo " - FAILED"
+if ! mountpoint -q "$TEST_DIR"; then
+	echo ""
+	exit
 fi
 
 
-# Тест 2: Проверка что архив не создается, если порог не превышен
+# ТЕСТ 1: Файлы со сложными именами и разные форматы путей
 
-echo -n "Тест 2: Порог не превышен (архив создаваться не должен)... "
+
+echo -e "\n Тест 1: Файлы со сложными именами и разные форматы путей"
 reset_env
 
-dd if=/dev/zero of="$TEST_DIR/small.dat" bs=1M count=5 &>/dev/null
+touch -- "$TEST_DIR/-old_file_with_dash.txt"
+sleep 1 
+touch -- "$TEST_DIR/regular_file.txt"
+sleep 1
+touch -- "$TEST_DIR/file with spaces.txt"
 
-printf "80\n1\nn\n" | $MAIN_SCRIPT "$TEST_DIR" &>/dev/null
+ABS_BACKUP_PATH="$(cd "$BACKUP_DIR" && pwd)"
+bash "$MAIN_SCRIPT" -test "$TEST_DIR" "$ABS_BACKUP_PATH" 1 2
 
-if ! ls /backup_*.tar.gz &>/dev/null; then
-    echo " - PASSED"
+if [ -f "$BACKUP_DIR/test_mount_dir.tar.gz" ] && [ ! -f "$TEST_DIR/-old_file_with_dash.txt" ] && [ -f "$TEST_DIR/file with spaces.txt" ]; then
+    echo "PASSED (архивация прошла успешно)"
 else
-    echo " - FAILED"
+    echo "FAILED"
 fi
 
 
-# Тест 3: Проверка выбора самого старого файла и его удаления
+# ТЕСТ 2: Фильтрация исключений
 
-echo -n "Тест 3: Сортировка по дате и удаление старого файла... "
+
+echo -e "\n Тест 2: Фильтрация исключений"
 reset_env
 
-touch -m -d "1 hour ago" "$TEST_DIR/very_old.dat"
-touch "$TEST_DIR/fresh.dat"
+touch "$TEST_DIR/ignore1.img"
+touch "$TEST_DIR/ignore2.swp"
+touch "$TEST_DIR/ignore3.tmp"
+sleep 1
+touch "$TEST_DIR/new_file.txt"
 
-dd if=/dev/zero of="$TEST_DIR/ballast.dat" bs=1M count=75 &>/dev/null
+bash "$MAIN_SCRIPT" -test "$TEST_DIR" "$BACKUP_DIR" 1 1
 
-printf "50\n1\ny\n" | $MAIN_SCRIPT "$TEST_DIR" &>/dev/null
-
-if [ ! -f "$TEST_DIR/very_old.dat" ] && [ -f "$TEST_DIR/fresh.dat" ]; then
-    echo " - PASSED"
+if [ ! -f "$TEST_DIR/new_file.txt" ] && [ -f "$TEST_DIR/ignore1.img" ] && [ -f "$TEST_DIR/ignore2.swp" ] && [ -f "$TEST_DIR/ignore3.tmp" ]; then
+    echo "PASSED (архивация произошла, важные файлы не были затронуты)"
 else
-    echo " - FAILED"
+    echo "FAILED"
 fi
+
+
+# ТЕСТ 3: Высокий порог заполнения
+
+
+echo -e "\n Тест 3: Высокий порог заполнения"
+reset_env
+
+touch "$TEST_DIR/file.txt"
+bash "$MAIN_SCRIPT" -test "$TEST_DIR" "$BACKUP_DIR" 100 1
+STATUS=$?
+
+if [ $STATUS -eq 0 ] && [ ! -f "$BACKUP_DIR/test_mount_dir.tar.gz" ] && [ -f "$TEST_DIR/file.txt" ]; then
+    echo "PASSED (архивация не произошла)"
+else
+    echo "FAILED"
+fi
+
+
+# ОЧИСТКА
+
+
+echo -e "\n"
+final_cleanup
+echo "--- Тестирование завершено. Среда очищена ---"
