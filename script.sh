@@ -90,7 +90,7 @@ OLD_DIR=$PWD
 cd "$TARGET_DIR"
 
 #Упаковка файлов в tar а затем сжатие gzip
-tar -czf "$ARCHIVE_PATH" "${FILES[@]}"
+tar -czf "$ARCHIVE_PATH" -- "${FILES[@]}"
 
 echo "Архив создан: $ARCHIVE_PATH"
 echo "Размер архива: $(ls -lh "$ARCHIVE_PATH" | awk '{print $5}')"
