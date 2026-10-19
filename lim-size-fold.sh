@@ -1,22 +1,56 @@
 #!/bin/bash
 
+console_input(){
 # 1. Определяем пользователя, который запустил скрипт (даже через sudo)
-REAL_USER=${SUDO_USER:-$USER}
-IMAGE_PATH="./fold_log.img"
-MOUNT_DIR="limited_folder"
+	REAL_USER=${SUDO_USER:-$USER}
+	read -r -p "Введите путь к папке которую необходимо смонтировать как виртуальное хранилище, с ограниченным размером: " MOUNT_DIR
+	
+	echo "Создание ограниченной папки для пользователя: $REAL_USER"
+	
+	echo "На диске доступно $(df -h | awk '$6 == "/" {print $4}')"
+	read -r -p "Введите объем хранилища в виде: 123M (K - Кибибайт 1024, M - Мeбибайт 1024^2, G - Гибибайт 1024^3) " SIZE
+}
 
-echo "Создание ограниченной папки для пользователя: $REAL_USER"
+if [ "$1" != "-test" ]; then
+	console_input
+else
+	MOUNT_DIR="$2"
+	SIZE="$3"
+fi
+
+IMAGE_PATH="$(basename "${MOUNT_DIR}").img"
+
+MAX_SIZE="$(df | awk '$6 == "/" {print $4}')"
+
+HALF_SIZE=$((MAX_SIZE / 2)) 
+
+if [[ ! "$SIZE"  =~ ^[0-9]+[.,]?[0-9]*(K|M|G|T|P)$ ]] 
+then
+	echo "Некоректное значение объема, значение установлено на 100M"
+	SIZE='100M'
+else
+	SIZE="$(numfmt --from=iec --to-unit=1024 "$SIZE")K"
+fi
+
+if [ $(numfmt --from=iec --to-unit=1024 "$SIZE") -gt "$MAX_SIZE" ]
+then
+	echo "Недостаточно объёма, значение установлено половине доступной памяти "
+	SIZE="${HALF_SIZE}K"
+fi
 
 # 2. Создаем и форматируем контейнер на 100 МБ
-truncate -s 100M "$IMAGE_PATH"
-mkfs.ext4 -F "$IMAGE_PATH"
+truncate -s ${SIZE} "$IMAGE_PATH" #Создание sparse файла с фиксированным объемом(-s)
+mkfs.ext4 -F "$IMAGE_PATH" #Создание файловой системы для виртуального диска, (-F) т к диск виртуальный
 
 # 3. Создаем точку монтирования и монтируем образ
-mkdir -p "$MOUNT_DIR"
-sudo mount -o loop "$IMAGE_PATH" "$MOUNT_DIR"
+mkdir -p "$MOUNT_DIR" #Создание папки в которую будет смонтировано виртуальное хранилище, 
+#(-p) не вызовет ошибки если папка уже существует
+#Создаст недостающие подпапки 
+
+guestmount -a "$IMAGE_PATH" -m /dev/sda "$MOUNT_DIR"
 
 # 4. Универсальная выдача прав реальному пользователю
-sudo chown -R "$REAL_USER":"$REAL_USER" "$MOUNT_DIR"
+#sudo chown -R "$REAL_USER":"$REAL_USER" "$MOUNT_DIR" #рекурсивно изменяет владельца для папки и всех файлов в ней
 
 echo "Папка успешно создана и примонтирована в: $MOUNT_DIR"
 echo "----------------------------------------"
